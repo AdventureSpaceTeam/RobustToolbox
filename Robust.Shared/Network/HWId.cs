@@ -1,31 +1,31 @@
-﻿using System;
-using System.Security.Cryptography;
-using Microsoft.Win32;
+using System;
 using Robust.Shared.Console;
+using System.Management;
+using System.Text;
 
 namespace Robust.Shared.Network
 {
     internal static class HWId
     {
-        public const int LengthHwid = 32;
-
+        private static string? GetWmi(string wmi_class, string property)
+        {
+            var mbs = new ManagementObjectSearcher($"Select {property} From {wmi_class}");
+            ManagementObjectCollection mbsList = mbs.Get();
+            foreach (ManagementObject mo in mbsList)
+            {
+                var id = mo[property].ToString();
+                if (id != null)
+                    return id;
+            }
+            return null;
+        }
         public static byte[] Calc()
         {
             if (OperatingSystem.IsWindows())
             {
-                var regKey = Registry.GetValue(@"HKEY_CURRENT_USER\SOFTWARE\Space Wizards\Robust", "Hwid", null);
-                if (regKey is byte[] { Length: LengthHwid } bytes)
-                    return bytes;
-
-                var newId = new byte[LengthHwid];
-                RandomNumberGenerator.Fill(newId);
-                Registry.SetValue(
-                    @"HKEY_CURRENT_USER\SOFTWARE\Space Wizards\Robust",
-                    "Hwid",
-                    newId,
-                    RegistryValueKind.Binary);
-
-                return newId;
+                var processorId = GetWmi("Win32_Processor", "ProcessorId");
+                var motherboardSerial = GetWmi("Win32_BaseBoard", "SerialNumber");
+                return Encoding.ASCII.GetBytes(processorId + motherboardSerial);
             }
 
             return Array.Empty<byte>();
